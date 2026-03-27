@@ -47,6 +47,8 @@ class SecurityHeadersPlugin(VulnPlugin):
                 remediation="Set security headers globally at the reverse proxy or application layer.",
                 cwe="CWE-693",
                 cvss_score=5.3,
+                verification="CONFIRMED",
+                verification_details="Observed directly in HTTP response headers from target.",
                 evidence=evidence,
             )
         )

@@ -58,6 +58,8 @@ class ReflectionProbePlugin(VulnPlugin):
                     remediation="Apply context-aware output encoding and strict input validation.",
                     cwe="CWE-79",
                     cvss_score=3.1,
+                    verification="LIKELY",
+                    verification_details="Benign marker string was reflected in server response.",
                     evidence=evidence,
                 )
             )

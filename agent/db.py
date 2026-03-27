@@ -16,6 +16,8 @@ CREATE TABLE IF NOT EXISTS findings (
     remediation TEXT NOT NULL,
     cwe TEXT NOT NULL,
     cvss_score REAL NOT NULL,
+    verification TEXT NOT NULL,
+    verification_details TEXT NOT NULL,
     request_method TEXT NOT NULL,
     request_url TEXT NOT NULL,
     request_headers TEXT NOT NULL,
@@ -42,7 +44,17 @@ class FindingsDB:
         self.path = Path(path)
         self.conn = sqlite3.connect(self.path)
         self.conn.executescript(SCHEMA)
+        self._migrate_findings_table()
         self.conn.commit()
+
+    def _migrate_findings_table(self) -> None:
+        cols = {row[1] for row in self.conn.execute("PRAGMA table_info(findings)").fetchall()}
+        if "verification" not in cols:
+            self.conn.execute("ALTER TABLE findings ADD COLUMN verification TEXT NOT NULL DEFAULT 'LIKELY'")
+        if "verification_details" not in cols:
+            self.conn.execute(
+                "ALTER TABLE findings ADD COLUMN verification_details TEXT NOT NULL DEFAULT 'Captured by plugin evidence.'"
+            )
 
     def log_crawl(self, url: str, status_code: int, response_bytes: int) -> None:
         self.conn.execute(
@@ -57,8 +69,9 @@ class FindingsDB:
                 """
                 INSERT INTO findings(
                     vuln_type,title,severity,confidence,endpoint,description,remediation,cwe,cvss_score,
+                    verification,verification_details,
                     request_method,request_url,request_headers,request_body,response_status,response_headers,response_body,created_at
-                ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
                 """,
                 (
                     finding.vuln_type,
@@ -70,6 +83,8 @@ class FindingsDB:
                     finding.remediation,
                     finding.cwe,
                     finding.cvss_score,
+                    finding.verification,
+                    finding.verification_details,
                     finding.evidence.request_method,
                     finding.evidence.request_url,
                     finding.evidence.request_headers,
@@ -87,7 +102,7 @@ class FindingsDB:
 
     def list_findings(self) -> list[dict]:
         cur = self.conn.execute(
-            "SELECT id,vuln_type,title,severity,confidence,endpoint,cvss_score,created_at FROM findings ORDER BY id DESC"
+            "SELECT id,vuln_type,title,severity,confidence,verification,endpoint,cvss_score,created_at FROM findings ORDER BY id DESC"
         )
         cols = [c[0] for c in cur.description]
         return [dict(zip(cols, row)) for row in cur.fetchall()]

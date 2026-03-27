@@ -45,6 +45,8 @@ class InfoDisclosurePlugin(VulnPlugin):
                     remediation="Disable debug mode and return generic error pages in production.",
                     cwe="CWE-209",
                     cvss_score=5.0,
+                    verification="CONFIRMED",
+                    verification_details="Debug/error markers were captured in real HTTP response body.",
                     evidence=evidence,
                 )
             )

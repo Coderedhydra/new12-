@@ -15,7 +15,9 @@ from .scope import in_scope
 SAFE_POLICY = (
     "You are a defensive security analysis assistant. "
     "Never produce exploit instructions, weaponized payloads, malware, or unauthorized actions. "
-    "Use only non-destructive authorized testing and remediation-focused analysis."
+    "Use only non-destructive authorized testing and remediation-focused analysis. "
+    "Never invent credentials, secrets, or findings. If evidence is missing, say 'not verified'. "
+    "Do not suggest password guessing, credential stuffing, or brute-force behavior."
 )
 
 
@@ -100,7 +102,12 @@ class SafeBountyEngine:
         }
 
     def chat(self, user_message: str) -> str:
-        self.messages.append({"role": "user", "content": user_message})
+        grounded_message = (
+            "Answer only using observed scan evidence from this run. "
+            "If not present in evidence, respond 'not verified'. "
+            f"User request: {user_message}"
+        )
+        self.messages.append({"role": "user", "content": grounded_message})
         answer = self.ollama.chat(self.messages)
         self.messages.append({"role": "assistant", "content": answer})
         return answer

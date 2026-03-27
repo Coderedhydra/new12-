@@ -30,5 +30,7 @@ class Finding:
     remediation: str
     cwe: str
     cvss_score: float
+    verification: str
+    verification_details: str
     evidence: HttpEvidence
     created_at: str = field(default_factory=lambda: datetime.utcnow().isoformat())

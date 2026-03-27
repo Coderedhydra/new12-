@@ -49,9 +49,17 @@ def print_findings(engine: SafeBountyEngine) -> None:
     table.add_column("Severity")
     table.add_column("Type")
     table.add_column("Title")
+    table.add_column("Verification")
     table.add_column("Endpoint")
     for row in rows:
-        table.add_row(str(row["id"]), row["severity"], row["vuln_type"], row["title"], row["endpoint"])
+        table.add_row(
+            str(row["id"]),
+            row["severity"],
+            row["vuln_type"],
+            row["title"],
+            row["verification"],
+            row["endpoint"],
+        )
     console.print(table)
 
 
@@ -73,7 +81,10 @@ async def run() -> None:
     config = AgentConfig(ollama_model=model)
     engine = SafeBountyEngine(config=config, base_url=base_url)
 
-    console.print("\nCommands: [bold]/recon[/bold], [bold]/scan[/bold], [bold]/findings[/bold], [bold]/report[/bold], [bold]/focus <area>[/bold], [bold]exit[/bold]\n")
+    console.print(
+        "\nCommands: [bold]/recon[/bold], [bold]/scan[/bold], [bold]/findings[/bold], "
+        "[bold]/report[/bold], [bold]/report confirmed[/bold], [bold]/focus <area>[/bold], [bold]exit[/bold]\n"
+    )
 
     while True:
         cmd = console.input("[bold blue]you>[/bold blue] ").strip()
@@ -96,8 +107,13 @@ async def run() -> None:
             continue
 
         if cmd == "/report":
-            output = export_reports(engine.db)
+            output = export_reports(engine.db, min_verification="LIKELY")
             console.print(f"Reports generated: {output}")
+            continue
+
+        if cmd == "/report confirmed":
+            output = export_reports(engine.db, min_verification="CONFIRMED")
+            console.print(f"Confirmed-only reports generated: {output}")
             continue
 
         if cmd.startswith("/focus "):

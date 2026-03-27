@@ -4,10 +4,12 @@ from pathlib import Path
 from .db import FindingsDB
 
 
-def export_reports(db: FindingsDB, output_dir: str = "reports") -> dict[str, str]:
+def export_reports(db: FindingsDB, output_dir: str = "reports", min_verification: str = "LIKELY") -> dict[str, str]:
     out = Path(output_dir)
     out.mkdir(parents=True, exist_ok=True)
     findings = db.full_findings()
+    rank = {"POTENTIAL": 1, "LIKELY": 2, "CONFIRMED": 3}
+    findings = [f for f in findings if rank.get(f.get("verification", "POTENTIAL"), 1) >= rank[min_verification]]
 
     json_path = out / "findings.json"
     md_path = out / "findings.md"
@@ -21,10 +23,12 @@ def export_reports(db: FindingsDB, output_dir: str = "reports") -> dict[str, str
             f"## [{f['severity']}] {f['title']}",
             f"- Type: {f['vuln_type']}",
             f"- Confidence: {f['confidence']}",
+            f"- Verification: {f['verification']}",
             f"- Endpoint: `{f['endpoint']}`",
             f"- CWE: {f['cwe']}",
             f"- CVSS 3.1: {f['cvss_score']}",
             f"- Description: {f['description']}",
+            f"- Verification details: {f['verification_details']}",
             f"- Remediation: {f['remediation']}",
             "",
         ]

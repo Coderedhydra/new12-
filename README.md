@@ -17,6 +17,8 @@ A local **defensive** security assessment assistant with:
 - Scope enforcement to avoid out-of-scope domains.
 - Request rate limiting (configurable).
 - No exploit automation, weaponized payloads, or destructive behavior.
+- No password guessing/brute-force/credential stuffing behavior.
+- Reporting is evidence-based (verification labels + captured HTTP proof).
 
 ## Installation
 
@@ -44,6 +46,7 @@ Commands:
 - `/scan` - run full safe phase pipeline
 - `/findings` - list findings from SQLite
 - `/report` - export Markdown + JSON + HTML reports
+- `/report confirmed` - export only CONFIRMED findings
 - `/focus <area>` - ask the LLM to focus on a specific area
 
 ## File structure
