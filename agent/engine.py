@@ -33,6 +33,7 @@ class SafeBountyEngine:
             {"role": "system", "content": SAFE_POLICY},
             {"role": "system", "content": f"Authorized scope: {base_url}"},
         ]
+        self.bootstrap_cache: dict | None = None
 
     async def execute_scan(self, progress_cb=None) -> dict:
         if progress_cb:
@@ -114,3 +115,34 @@ class SafeBountyEngine:
 
     async def run_recon_only(self) -> dict:
         return await run_recon(self.base_url, self.config, self.limiter)
+
+    async def bootstrap_target_context(self, progress_cb=None) -> dict:
+        if self.bootstrap_cache is not None:
+            return self.bootstrap_cache
+
+        if progress_cb:
+            progress_cb("bootstrap", "Collecting initial recon and crawl context")
+        recon = await run_recon(self.base_url, self.config, self.limiter)
+        crawl = await recursive_crawl(self.base_url, self.config, self.limiter, self.db)
+
+        bootstrap_summary = {
+            "base_url": self.base_url,
+            "internal_urls": crawl.get("urls", []),
+            "forms": crawl.get("forms", []),
+            "js_files": crawl.get("js_files", []),
+            "parameters": crawl.get("parameters", {}),
+            "recon_paths": recon.get("paths", []),
+            "tech_hints": recon.get("tech_hints", []),
+        }
+        self.messages.append(
+            {
+                "role": "system",
+                "content": (
+                    "Initial target context collected from live scan. "
+                    "Use this context for user questions and planning: "
+                    + json.dumps(bootstrap_summary)[:12000]
+                ),
+            }
+        )
+        self.bootstrap_cache = {"recon": recon, "crawl": crawl}
+        return self.bootstrap_cache

@@ -80,6 +80,12 @@ async def run() -> None:
 
     config = AgentConfig(ollama_model=model)
     engine = SafeBountyEngine(config=config, base_url=base_url)
+    bootstrap = await engine.bootstrap_target_context(progress_cb=progress_callback)
+    bootstrap_crawl = bootstrap.get("crawl", {})
+    console.print(
+        f"[green]Bootstrapped context:[/green] urls={len(bootstrap_crawl.get('urls', []))}, "
+        f"forms={len(bootstrap_crawl.get('forms', []))}, js={len(bootstrap_crawl.get('js_files', []))}"
+    )
 
     console.print(
         "\nCommands: [bold]/recon[/bold], [bold]/scan[/bold], [bold]/findings[/bold], "

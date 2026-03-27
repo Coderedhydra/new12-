@@ -49,6 +49,8 @@ Commands:
 - `/report confirmed` - export only CONFIRMED findings
 - `/focus <area>` - ask the LLM to focus on a specific area
 
+On startup (right after URL confirmation), the agent automatically performs an initial recon + crawl pass, gathers forms/internal URLs, and injects that context into the model before chat.
+
 ## File structure
 
 ```text
