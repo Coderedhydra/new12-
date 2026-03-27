@@ -45,6 +45,20 @@ Then:
 
 Type `exit` to quit.
 
+## Timeout troubleshooting (Ollama)
+
+Large models can take longer than default HTTP read timeout.  
+If you see timeout errors, increase Ollama read timeout:
+
+```bash
+OLLAMA_READ_TIMEOUT=300 python safe_agent.py
+```
+
+Optional environment variables:
+
+- `OLLAMA_CONNECT_TIMEOUT` (default `10`)
+- `OLLAMA_READ_TIMEOUT` (default `180`)
+
 ## Notes
 
 If `ollama list` is unavailable, the app will ask for a model name manually.

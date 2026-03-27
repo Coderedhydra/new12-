@@ -1,16 +1,21 @@
 import json
+import os
 import re
 import subprocess
+import time
 from dataclasses import dataclass
 from html.parser import HTMLParser
 from typing import Any
 from urllib.parse import parse_qs, urlencode, urljoin, urlparse, urlunparse
 
 import requests
+from requests import Response
 
 OLLAMA_CHAT_URL = "http://127.0.0.1:11434/api/chat"
 USER_AGENT = "SafeResearchAgent/1.0"
-TIMEOUT = 12
+HTTP_TIMEOUT = (5, 15)
+OLLAMA_TIMEOUT = (10, 180)
+OLLAMA_MAX_RETRIES = 2
 
 
 @dataclass
@@ -64,7 +69,7 @@ def normalized_in_scope(url: str, base: str) -> bool:
 
 
 def fetch_url(url: str) -> dict[str, Any]:
-    r = requests.get(url, headers={"User-Agent": USER_AGENT}, timeout=TIMEOUT)
+    r = requests.get(url, headers={"User-Agent": USER_AGENT}, timeout=HTTP_TIMEOUT)
     return {
         "url": url,
         "status": r.status_code,
@@ -76,7 +81,7 @@ def fetch_url(url: str) -> dict[str, Any]:
 
 
 def enumerate_links(url: str, max_links: int = 100) -> dict[str, Any]:
-    r = requests.get(url, headers={"User-Agent": USER_AGENT}, timeout=TIMEOUT)
+    r = requests.get(url, headers={"User-Agent": USER_AGENT}, timeout=HTTP_TIMEOUT)
     parser = LinkFormParser()
     parser.feed(r.text)
 
@@ -105,7 +110,7 @@ def enumerate_links(url: str, max_links: int = 100) -> dict[str, Any]:
 
 
 def check_security_headers(url: str) -> dict[str, Any]:
-    r = requests.get(url, headers={"User-Agent": USER_AGENT}, timeout=TIMEOUT)
+    r = requests.get(url, headers={"User-Agent": USER_AGENT}, timeout=HTTP_TIMEOUT)
     hdr = {k.lower(): v for k, v in r.headers.items()}
 
     required = [
@@ -135,7 +140,7 @@ def reflection_probe(url: str, marker: str = "SAFE_REFLECT_PROBE") -> dict[str, 
     encoded = urlencode({k: v[0] for k, v in probe_qs.items()})
     probe_url = urlunparse((p.scheme, p.netloc, p.path, p.params, encoded, p.fragment))
 
-    r = requests.get(probe_url, headers={"User-Agent": USER_AGENT}, timeout=TIMEOUT)
+    r = requests.get(probe_url, headers={"User-Agent": USER_AGENT}, timeout=HTTP_TIMEOUT)
     reflections = [k for k in probe_qs if marker in r.text]
 
     return {
@@ -148,7 +153,7 @@ def reflection_probe(url: str, marker: str = "SAFE_REFLECT_PROBE") -> dict[str, 
 
 
 def analyze_source_patterns(url: str) -> dict[str, Any]:
-    r = requests.get(url, headers={"User-Agent": USER_AGENT}, timeout=TIMEOUT)
+    r = requests.get(url, headers={"User-Agent": USER_AGENT}, timeout=HTTP_TIMEOUT)
     body = r.text.lower()
     patterns = {
         "inline_script": "<script" in body,
@@ -177,14 +182,53 @@ def tool_registry() -> dict[str, Any]:
     }
 
 
+def _configured_ollama_timeout() -> tuple[int, int]:
+    connect = int(os.getenv("OLLAMA_CONNECT_TIMEOUT", str(OLLAMA_TIMEOUT[0])))
+    read = int(os.getenv("OLLAMA_READ_TIMEOUT", str(OLLAMA_TIMEOUT[1])))
+    return (connect, read)
+
+
+def _raise_for_ollama_error(r: Response) -> None:
+    try:
+        r.raise_for_status()
+    except requests.HTTPError as exc:
+        response_text = r.text[:500]
+        raise RuntimeError(
+            f"Ollama returned HTTP {r.status_code}. Response: {response_text}"
+        ) from exc
+
+
 def call_ollama(model: str, messages: list[dict[str, Any]]) -> dict[str, Any]:
-    r = requests.post(
-        OLLAMA_CHAT_URL,
-        json={"model": model, "messages": messages, "stream": False},
-        timeout=TIMEOUT,
-    )
-    r.raise_for_status()
-    return r.json()
+    timeout = _configured_ollama_timeout()
+    backoff_seconds = 1.5
+
+    for attempt in range(1, OLLAMA_MAX_RETRIES + 2):
+        try:
+            r = requests.post(
+                OLLAMA_CHAT_URL,
+                json={"model": model, "messages": messages, "stream": False},
+                timeout=timeout,
+            )
+            _raise_for_ollama_error(r)
+            return r.json()
+        except requests.exceptions.ReadTimeout as exc:
+            if attempt > OLLAMA_MAX_RETRIES:
+                raise RuntimeError(
+                    "Timed out waiting for Ollama response. "
+                    f"Current timeout is connect={timeout[0]}s, read={timeout[1]}s. "
+                    "You can increase it with OLLAMA_READ_TIMEOUT."
+                ) from exc
+            print(
+                f"[warn] Ollama read timed out (attempt {attempt}/{OLLAMA_MAX_RETRIES + 1}). "
+                f"Retrying in {backoff_seconds:.1f}s..."
+            )
+            time.sleep(backoff_seconds)
+            backoff_seconds *= 2
+        except requests.exceptions.ConnectionError as exc:
+            raise RuntimeError(
+                "Could not connect to Ollama at http://127.0.0.1:11434. "
+                "Make sure `ollama serve` is running."
+            ) from exc
 
 
 def run_tool_message(tool_call: str, args: dict[str, Any], ctx: AgentContext) -> dict[str, Any]:
@@ -225,7 +269,12 @@ def agent_loop(ctx: AgentContext) -> None:
             break
 
         ctx.history.append({"role": "user", "content": user_msg})
-        response = call_ollama(ctx.model, ctx.history)
+        try:
+            response = call_ollama(ctx.model, ctx.history)
+        except Exception as exc:
+            print(f"\nagent-error> {exc}\n")
+            print("Tip: try a smaller model or set OLLAMA_READ_TIMEOUT=300 and run again.\n")
+            continue
         msg = response.get("message", {})
 
         content = msg.get("content", "")
