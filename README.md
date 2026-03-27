@@ -1,64 +1,71 @@
-# Safe Research Assistant Agent (Ollama)
+# Safe Autonomous Security Assistant (Ollama, Local)
 
-This project provides a **defensive security research assistant** that:
+A local **defensive** security assessment assistant with:
 
-- Lists local Ollama models and lets you choose one.
-- Accepts a target URL.
-- Runs in chat mode with tool-calling support.
-- Performs **authorized, non-destructive** reconnaissance checks.
-- Collects links/forms/internal endpoints and basic HTTP evidence.
-- Uses findings to help with secure code review and remediation guidance.
+- Conversational CLI (`rich`) with command shortcuts
+- Ollama-backed reasoning (`llama3.1`, `deepseek-coder-v2`, `mixtral` preferred)
+- Phase-based pipeline: **recon → crawl → test → report**
+- Modular vulnerability plugins (safe, non-destructive checks)
+- SQLite evidence + finding storage
+- Real-time stage/finding output
 
-## Important safety scope
+> This tool is intentionally designed for authorized, non-destructive security testing and remediation workflows.
 
-This agent intentionally avoids exploit automation, destructive payloads, credential abuse, or unauthorized testing. Use only on systems you own or are explicitly authorized to test.
+## Safety constraints
 
-## Features
+- Requires explicit authorization confirmation before testing.
+- Scope enforcement to avoid out-of-scope domains.
+- Request rate limiting (configurable).
+- No exploit automation, weaponized payloads, or destructive behavior.
 
-- `ollama list` model discovery.
-- Interactive model selection.
-- Chat loop backed by Ollama `/api/chat`.
-- Tool functions:
-  - `fetch_url` – fetch and summarize a URL.
-  - `enumerate_links` – collect in-scope links and forms.
-  - `check_security_headers` – inspect common missing security headers.
-  - `reflection_probe` – benign marker reflection test for query parameters.
-  - `analyze_source_patterns` – detect risky code patterns in fetched source.
-- Local knowledge base from OWASP-style guidance (`knowledge_base.json`).
-
-## Requirements
-
-- Python 3.10+
-- Running Ollama daemon (`ollama serve`)
-- At least one pulled model (e.g. `ollama pull llama3.1`)
-
-## Usage
+## Installation
 
 ```bash
-python safe_agent.py
+python -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
 ```
 
-Then:
-1. Pick a model from the list.
-2. Enter target URL.
-3. Chat with the agent.
-
-Type `exit` to quit.
-
-## Timeout troubleshooting (Ollama)
-
-Large models can take longer than default HTTP read timeout.  
-If you see timeout errors, increase Ollama read timeout:
+Make sure Ollama is running:
 
 ```bash
-OLLAMA_READ_TIMEOUT=300 python safe_agent.py
+ollama serve
 ```
 
-Optional environment variables:
+## Run
 
-- `OLLAMA_CONNECT_TIMEOUT` (default `10`)
-- `OLLAMA_READ_TIMEOUT` (default `180`)
+```bash
+python cli.py
+```
 
-## Notes
+Commands:
 
-If `ollama list` is unavailable, the app will ask for a model name manually.
+- `/recon` - run recon only
+- `/scan` - run full safe phase pipeline
+- `/findings` - list findings from SQLite
+- `/report` - export Markdown + JSON + HTML reports
+- `/focus <area>` - ask the LLM to focus on a specific area
+
+## File structure
+
+```text
+agent/
+  config.py
+  crawler.py
+  db.py
+  engine.py
+  models.py
+  ollama_client.py
+  plugin_manager.py
+  rate_limiter.py
+  recon.py
+  reporter.py
+  scope.py
+  plugins/
+    base.py
+    info_disclosure.py
+    reflection_probe.py
+    security_headers.py
+cli.py
+requirements.txt
+```
